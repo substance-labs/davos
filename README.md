@@ -1,5 +1,5 @@
 ````markdown
-# Davos - Decentralized Autonomous VOting System
+# Davos - Decentralized Autonomous Voting System
 
 Davos is a next-generation AI-powered voting delegate designed for DAOs and cooperatives. It utilizes a hexagonal architecture to ensure modularity and extensibility, with a core logic implemented as smart contracts. The system integrates multiple adapters, including an LLM adapter (e.g., OpenAI or Acurast-Llama) and a KMS adapter (e.g., Keyring), enabling efficient and secure execution.
 
@@ -85,12 +85,6 @@ Solidity contracts deployed on EVM-compatible chains:
 - **LLMAdapter**: Bridge for AI-powered decision making - not used: the voter votes directly in the mvp
 - **KMSAdapter**: Ready for Secure key management for vote signing
 
-#### 3. **Relayer Service** (`relayer/`) - disabled: the voter votes directly in the mvp
-Listens for on-chain events and coordinates with external LLM services:
-- Processes `Asked` events from LLMAdapter
-- Integrates with OpenAI or Acurast for AI responses
-- Submits responses back to the blockchain
-
 #### 4. **Proposal API** (`proposal-api/`)
 Python service for proposal analysis:
 - Analyzes proposal content using NLP
@@ -98,10 +92,8 @@ Python service for proposal analysis:
 - Flask-based API for easy integration
 
 ### Supporting Components
-
-- **`acurast_llm/`**: Acurast deployment for decentralized LLM execution
 - **`test-env/`**: Emulation environment for testing without live DAOs
-- **`new-tally-integration/`**: Documentation for Tally DAO integration
+
 
 ## Monorepo Structure
 
@@ -120,9 +112,7 @@ davos-mvp/
 │   │   ├── voter.ts        # Vote execution
 │   │   └── ethosWatcher.ts # Event monitoring
 │   └── package.json
-├── relayer/            # Event relayer (TypeScript + viem)
 ├── proposal-api/       # Proposal analysis API (Python + Flask)
-├── acurast_llm/        # Decentralized LLM deployment
 ├── test-env/           # Testing environment
 └── docker-compose.yml  # Full stack deployment
 ```
@@ -335,12 +325,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
 ## License
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
-
-## Support
-
-- Documentation: [docs/](docs/)
-- Issues: [GitHub Issues](https://github.com/substance-labs/davos-mvp/issues)
-- Discord: [Join our community](https://discord.gg/...)
 
 ---
 
