@@ -1,0 +1,30 @@
+{
+  "name": "delegate",
+  "version": "1.0.0",
+  "description": "",
+  "packageManager": "npm@11.1.0",
+  "workspaces": [
+    "contracts",
+    "voter"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "dev:anvil": "anvil --block-time 1",
+    "dev:deploy": "npm run deploy:local -w contracts",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,sol}\"",
+    "lint": "turbo run lint"
+  },
+  "keywords": [],
+  "author": "",
+  "type": "commonjs",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.2.5",
+    "prettier-plugin-solidity": "^1.3.1",
+    "turbo": "^2.5.8"
+  }
+}
