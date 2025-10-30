@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # MongoDB service from voter component
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=davos
+      - MONGO_INITDB_ROOT_PASSWORD=voterpassword
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')", "--host", "localhost", "--username", "davos", "--password", "voterpassword", "--authenticationDatabase", "admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: always
+    command: ["mongod", "--bind_ip_all", "--quiet", "--logpath", "/dev/null"]
+
+  # Voter API service
+  davos-voter-api:
+    build:
+      context: ./voter
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    env_file: ./voter/.env
+    environment:
+      - API_PORT=3000
+      - MONGODB_URI=mongodb://davos:voterpassword@mongodb:27017/davos-voter?authSource=admin
+      - NODE_ENV=production
+    volumes:
+      - ./.env:/app/root.env
+      - logs:/app/logs
+    restart: always
+
+  # Relayer service
+  # relayer:
+  #   build:
+  #     context: ./relayer
+  #     dockerfile: Dockerfile
+  #   env_file: ./relayer/.env
+  #   restart: always
+  #   healthcheck:
+  #     test: ["CMD", "node", "-e", "process.exit(0)"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+
+  # Proposal API service
+  proposal-api:
+    build:
+      context: ./proposal-api
+      dockerfile: Dockerfile
+    ports:
+      - "6000:6000"
+    environment:
+      - FLASK_ENV=production
+    restart: always
+
+  # Test environment service for emulating snapshot.org
+  # test-env:
+  #   build:
+  #     context: ./test-env
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "5001:5001"
+  #   volumes:
+  #     - ./.env:/app/.env
+  #   restart: always
+
+volumes:
+  mongo_data:
+  logs:
