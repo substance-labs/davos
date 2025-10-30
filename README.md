@@ -82,11 +82,10 @@ The main backend service that orchestrates all voting operations:
 #### 2. **Smart Contracts** (`contracts/`)
 Solidity contracts deployed on EVM-compatible chains:
 - **DeleGate**: Core contract managing user ethos and subscriptions
-- **LLMAdapter**: Bridge for AI-powered decision making
-- **KMSAdapter**: Secure key management for vote signing
-- **KeyringGateway**: Integration with Keyring for multi-chain support
+- **LLMAdapter**: Bridge for AI-powered decision making - not used: the voter votes directly in the mvp
+- **KMSAdapter**: Ready for Secure key management for vote signing
 
-#### 3. **Relayer Service** (`relayer/`)
+#### 3. **Relayer Service** (`relayer/`) - disabled: the voter votes directly in the mvp
 Listens for on-chain events and coordinates with external LLM services:
 - Processes `Asked` events from LLMAdapter
 - Integrates with OpenAI or Acurast for AI responses
