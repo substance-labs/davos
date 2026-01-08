@@ -33,8 +33,7 @@ export async function fetchProposals(spaceId: string): Promise<SnapshotProposal[
           first: 100,
           skip: 0,
           where: {
-            space_in: ["${spaceId}"],
-            state: "active"
+            space_in: ["${spaceId}"]
           },
           orderBy: "created",
           orderDirection: desc
@@ -83,16 +82,21 @@ export async function fetchProposals(spaceId: string): Promise<SnapshotProposal[
       return [];
     }
     
-    const proposals = data.data.proposals;
+    const allProposals = data.data.proposals;
+    
+    // Filter to keep only active and pending proposals
+    const proposals = allProposals.filter((p: SnapshotProposal) => 
+      p.state === 'active' || p.state === 'pending'
+    );
     
     // Debug log the entire response
     // logger.info(`API Response: ${JSON.stringify(data, null, 2)}`);
     
-    // Log all proposals found before filtering
-    logger.info(`Found ${proposals.length} proposals for ${spaceId} before filtering:`);
+    // Log all proposals found after filtering
+    logger.info(`Found ${proposals.length} active/pending proposals for ${spaceId}:`);
     proposals.forEach((p: SnapshotProposal) => {
       const endDate = new Date(p.end * 1000).toISOString();
-      logger.info(`- ID: ${p.id}, Title: ${p.title}, End time: ${endDate}, Space: ${p.space.id}`);
+      logger.info(`- ID: ${p.id}, Title: ${p.title}, State: ${p.state}, End time: ${endDate}, Space: ${p.space.id}`);
     });
     
     return proposals;
