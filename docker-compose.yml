@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MongoDB service from voter component
   mongodb:
@@ -38,6 +36,12 @@ services:
     volumes:
       - ./.env:/app/root.env
       - logs:/app/logs
+      - ./logs/voter:/var/log/voter
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
     restart: always
 
   # Relayer service

@@ -1,4 +1,4 @@
-import { config } from 'dotenv';
+import logger from './logger';
 
 // Simple in-memory cache
 interface CacheEntry {
@@ -36,7 +36,7 @@ export async function fetchOpenAIResponse(
   if (!skipCache) {
     const cached = responseCache.get(cacheKey);
     if (cached && (now - cached.timestamp) < CACHE_TTL_MS) {
-      console.info('Using cached OpenAI response');
+      logger.info('Using cached OpenAI response');
       return cached.response;
     }
   }
@@ -49,7 +49,14 @@ export async function fetchOpenAIResponse(
   });
 
   try {
-    console.info('Fetching OpenAI directly');
+    logger.info('Fetching OpenAI directly');
+    logger.info(`Directive: ${directive}`);
+    
+    // Only log first 3 lines of proposal
+    const proposalLines = proposal.split('\n');
+    const previewLines = proposalLines.slice(0, 3).join('\n');
+    logger.info(`Proposal (first 3 lines): ${previewLines}`);
+    
     const response = await openai.chat.completions.create({
       model: process.env.AI_MODEL || 'gpt-4.1',
       messages: [
@@ -57,6 +64,8 @@ export async function fetchOpenAIResponse(
         { role: 'user', content: proposal },
       ],
     });
+
+    logger.info(`OpenAI full response: ${JSON.stringify(response, null, 2)}`);
     
     const responseText = response.choices[0].message.content || '';
     
@@ -68,7 +77,7 @@ export async function fetchOpenAIResponse(
     
     return responseText;
   } catch (error: any) {
-    console.error('OpenAI Error:', error);
+    logger.error('OpenAI Error:', error);
     throw error;
   }
 }
