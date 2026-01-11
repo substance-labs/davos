@@ -802,6 +802,277 @@ app.post('/api/ai-request', async (req, res) => {
   }
 });
 
+// ============================================
+// VOTING POWER ENDPOINTS
+// ============================================
+
+import { 
+  getVotingPowerForAgent, 
+  getVotingPowerForProposal, 
+  getVotingPowerForSpace,
+  updateVotingPowerForProposal,
+  checkAndUpdateAllVotingPower,
+  fetchVotingPower
+} from '../votingPowerService';
+
+/**
+ * GET /api/voting-power/:agentAddress - Get all active voting power for an agent
+ */
+app.get('/api/voting-power/:agentAddress', async (req, res) => {
+  try {
+    const { agentAddress } = req.params;
+    
+    if (!agentAddress) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Agent address is required' 
+      });
+    }
+
+    const votingPowers = await getVotingPowerForAgent(agentAddress);
+    
+    return res.status(200).json({
+      success: true,
+      data: votingPowers.map(vp => ({
+        proposalId: vp.proposalId,
+        spaceId: vp.spaceId,
+        vp: vp.vp,
+        vpByStrategy: vp.vpByStrategy,
+        vpState: vp.vpState,
+        proposalStart: vp.proposalStart,
+        proposalEnd: vp.proposalEnd,
+        canVote: vp.canVote,
+        scheduledVoteTime: vp.scheduledVoteTime,
+        lastChecked: vp.lastChecked
+      }))
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to get voting power: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get voting power',
+      message: errorMessage 
+    });
+  }
+});
+
+/**
+ * GET /api/voting-power/:agentAddress/:proposalId - Get voting power for a specific proposal
+ */
+app.get('/api/voting-power/:agentAddress/:proposalId', async (req, res) => {
+  try {
+    const { agentAddress, proposalId } = req.params;
+    
+    if (!agentAddress || !proposalId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Agent address and proposal ID are required' 
+      });
+    }
+
+    const votingPower = await getVotingPowerForProposal(agentAddress, proposalId);
+    
+    if (!votingPower) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Voting power not found for this proposal' 
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        proposalId: votingPower.proposalId,
+        spaceId: votingPower.spaceId,
+        vp: votingPower.vp,
+        vpByStrategy: votingPower.vpByStrategy,
+        vpState: votingPower.vpState,
+        proposalStart: votingPower.proposalStart,
+        proposalEnd: votingPower.proposalEnd,
+        canVote: votingPower.canVote,
+        scheduledVoteTime: votingPower.scheduledVoteTime,
+        lastChecked: votingPower.lastChecked
+      }
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to get voting power: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get voting power',
+      message: errorMessage 
+    });
+  }
+});
+
+/**
+ * GET /api/voting-power/space/:spaceId - Get all voting power for a space/DAO
+ */
+app.get('/api/voting-power/space/:spaceId', async (req, res) => {
+  try {
+    const { spaceId } = req.params;
+    
+    if (!spaceId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Space ID is required' 
+      });
+    }
+
+    const votingPowers = await getVotingPowerForSpace(spaceId);
+    
+    return res.status(200).json({
+      success: true,
+      data: votingPowers.map(vp => ({
+        agentAddress: vp.agentAddress,
+        proposalId: vp.proposalId,
+        spaceId: vp.spaceId,
+        vp: vp.vp,
+        vpByStrategy: vp.vpByStrategy,
+        vpState: vp.vpState,
+        proposalStart: vp.proposalStart,
+        proposalEnd: vp.proposalEnd,
+        canVote: vp.canVote,
+        scheduledVoteTime: vp.scheduledVoteTime,
+        lastChecked: vp.lastChecked
+      }))
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to get voting power for space: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to get voting power for space',
+      message: errorMessage 
+    });
+  }
+});
+
+/**
+ * POST /api/voting-power/check - Manually trigger voting power check for an agent/proposal
+ */
+app.post('/api/voting-power/check', async (req, res) => {
+  try {
+    const { agentAddress, proposalId, spaceId, proposalStart, proposalEnd } = req.body;
+    
+    if (!agentAddress || !proposalId || !spaceId || proposalStart === undefined || proposalEnd === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: agentAddress, proposalId, spaceId, proposalStart, proposalEnd' 
+      });
+    }
+
+    const votingPower = await updateVotingPowerForProposal(
+      agentAddress,
+      proposalId,
+      spaceId,
+      proposalStart,
+      proposalEnd
+    );
+    
+    if (!votingPower) {
+      return res.status(500).json({ 
+        success: false, 
+        error: 'Failed to update voting power' 
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        proposalId: votingPower.proposalId,
+        spaceId: votingPower.spaceId,
+        vp: votingPower.vp,
+        vpByStrategy: votingPower.vpByStrategy,
+        vpState: votingPower.vpState,
+        proposalStart: votingPower.proposalStart,
+        proposalEnd: votingPower.proposalEnd,
+        canVote: votingPower.canVote,
+        scheduledVoteTime: votingPower.scheduledVoteTime,
+        lastChecked: votingPower.lastChecked
+      }
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to check voting power: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to check voting power',
+      message: errorMessage 
+    });
+  }
+});
+
+/**
+ * POST /api/voting-power/refresh-all - Manually trigger voting power refresh for all active agents
+ */
+app.post('/api/voting-power/refresh-all', async (req, res) => {
+  try {
+    // Start the refresh asynchronously
+    checkAndUpdateAllVotingPower().catch(err => {
+      logger.error(`Background voting power refresh failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Voting power refresh started'
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to start voting power refresh: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to start voting power refresh',
+      message: errorMessage 
+    });
+  }
+});
+
+/**
+ * GET /api/voting-power/live/:voter/:space/:proposal - Fetch live voting power from Snapshot
+ * This bypasses the cache and fetches directly from Snapshot API
+ */
+app.get('/api/voting-power/live/:voter/:space/:proposal', async (req, res) => {
+  try {
+    const { voter, space, proposal } = req.params;
+    
+    if (!voter || !space || !proposal) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Voter, space and proposal are required' 
+      });
+    }
+
+    const vpResult = await fetchVotingPower(voter, space, proposal);
+    
+    if (!vpResult) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Could not fetch voting power' 
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        vp: vpResult.vp,
+        vpByStrategy: vpResult.vp_by_strategy,
+        vpState: vpResult.vp_state,
+        canVote: vpResult.vp > 0 && vpResult.vp_state === 'valid'
+      }
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logger.error(`Failed to fetch live voting power: ${errorMessage}`);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Failed to fetch live voting power',
+      message: errorMessage 
+    });
+  }
+});
+
 // Start the server
 export function startApiServer(port: number = 3000): void {
   app.listen(port, () => {
