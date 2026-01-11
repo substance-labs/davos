@@ -1,7 +1,7 @@
 import { SnapshotProposal, TallyProposal, TallyVoteParams, ProposalType } from './types';
 import snapshot from '@snapshot-labs/snapshot.js';
 import { RPC_URL, DELEGATE_CONTRACT_ADDRESS, VOTE_POLLER_INTERVAL, VOTE_MIN_BEFORE_END } from './config';
-import { getAgentsForSpace, scheduleVoteInDb, getPendingVotes, markVoteCompleted, markVoteFailed, getVoteDetailsByAgentAddress } from './db/service';
+import { getAgentsForSpace, scheduleVoteInDb, getPendingVotes, markVoteCompleted, markVoteFailed, getVoteDetailsByAgentAddress, saveVoteReceipt, VoteReceipt } from './db/service';
 import logger from './logger';
 import { IAgent, IScheduledVote } from './db/models';
 import { publicClient, walletClient, relayerAccount } from './lib/utils';
@@ -280,6 +280,9 @@ export async function castSnapshotVote(
       choice: choice,
     });
     logger.info(`Snapshot vote submitted: ${JSON.stringify(receipt, null, 2)}`);
+
+    // Save the vote receipt to the database
+    await saveVoteReceipt(agentAddress, proposal.id, receipt as VoteReceipt);
   } catch (error) {
     if (error instanceof Error) {
       logger.error(`Error voting: ${error.message}`);

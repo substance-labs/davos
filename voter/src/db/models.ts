@@ -50,6 +50,12 @@ export interface IVoteDetails extends Document {
   userVoteChoice?: 'yes' | 'no'; // Actual user vote (if different from AI)
   userEthos: string;          // User's ethos used for AI decision
   status: 'pending' | 'voted' | 'expired';
+  // Vote receipt fields (populated after successful vote)
+  voteReceiptId?: string;     // Vote transaction ID from Snapshot
+  voteReceiptIpfs?: string;   // IPFS hash of the vote
+  voteRelayerAddress?: string; // Relayer address that processed the vote
+  voteRelayerReceipt?: string; // Relayer receipt/signature
+  votedAt?: Date;             // Timestamp when the vote was cast
   createdAt: Date;
   updatedAt: Date;
   lastChecked: Date;          // When we last verified proposal text
@@ -144,7 +150,13 @@ const VoteDetailsSchema = new Schema<IVoteDetails>(
     userVoteChoice: { type: String, enum: ['yes', 'no'] },
     userEthos: { type: String, required: true },
     status: { type: String, required: true, enum: ['pending', 'voted', 'expired'], default: 'pending' },
-    lastChecked: { type: Date, default: Date.now }
+    lastChecked: { type: Date, default: Date.now },
+    // Vote receipt fields
+    voteReceiptId: { type: String },
+    voteReceiptIpfs: { type: String },
+    voteRelayerAddress: { type: String },
+    voteRelayerReceipt: { type: String },
+    votedAt: { type: Date }
   },
   { timestamps: true }
 );

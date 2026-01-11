@@ -582,6 +582,43 @@ export async function getVoteDetailsByAgentAddress(
 }
 
 /**
+ * Save vote receipt after a successful vote submission
+ */
+export interface VoteReceipt {
+  id: string;
+  ipfs: string;
+  relayer?: {
+    address: string;
+    receipt: string;
+  };
+}
+
+export async function saveVoteReceipt(
+  agentAddress: string,
+  proposalId: string,
+  receipt: VoteReceipt
+): Promise<boolean> {
+  try {
+    await VoteDetails.findOneAndUpdate(
+      { agentAddress, proposalId },
+      {
+        status: 'voted',
+        voteReceiptId: receipt.id,
+        voteReceiptIpfs: receipt.ipfs,
+        voteRelayerAddress: receipt.relayer?.address,
+        voteRelayerReceipt: receipt.relayer?.receipt,
+        votedAt: new Date()
+      }
+    );
+    logger.info(`Saved vote receipt for proposal ${proposalId}: ${receipt.id}`);
+    return true;
+  } catch (error) {
+    logger.error(`Failed to save vote receipt: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+}
+
+/**
  * Get vote details for a user's agent and proposal
  * This finds the first active agent for the user and returns their vote details
  */
