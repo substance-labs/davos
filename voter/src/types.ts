@@ -1,3 +1,6 @@
+// ProposalType matches Snapshot SDK's type
+export type ProposalType = 'single-choice' | 'approval' | 'quadratic' | 'ranked-choice' | 'weighted' | 'basic';
+
 export interface SnapshotProposal {
     id: string;
     title: string;
@@ -8,10 +11,17 @@ export interface SnapshotProposal {
     snapshot: string;
     state: string;
     author: string;
+    type: ProposalType;
     space: {
       id: string;
       name: string;
     };
+  }
+
+  export interface VotingPowerResult {
+    vp: number;                // Total voting power
+    vp_by_strategy: number[];  // Voting power by each strategy
+    vp_state: string;          // 'valid', 'invalid', or 'loading'
   }
   
   export interface VoteParams {
