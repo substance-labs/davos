@@ -1,4 +1,4 @@
-import { SnapshotProposal, TallyProposal, TallyVoteParams } from './types';
+import { SnapshotProposal, TallyProposal, TallyVoteParams, ProposalType } from './types';
 import snapshot from '@snapshot-labs/snapshot.js';
 import { RPC_URL, DELEGATE_CONTRACT_ADDRESS, VOTE_POLLER_INTERVAL, VOTE_MIN_BEFORE_END } from './config';
 import { getAgentsForSpace, scheduleVoteInDb, getPendingVotes, markVoteCompleted, markVoteFailed, getVoteDetailsByAgentAddress } from './db/service';
@@ -17,11 +17,55 @@ const client = new snapshot.Client712(hub);
 const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
 
 /**
- * Convert string vote choice to numeric value
+ * Convert string vote choice to numeric value for Snapshot
+ * Snapshot uses 1-indexed choices based on the proposal's choices array
  * @param voteChoice The vote choice as string ("yes", "no", or "abstain")
- * @returns The numeric vote value (1 = For, 0 = Against, 2 = Abstain)
+ * @param proposalChoices The available choices from the proposal (e.g., ["YAE", "NAY", "Abstain"])
+ * @returns The numeric vote value (1-indexed based on matching choice)
  */
-export function convertVoteChoice(voteChoice: string): number {
+export function convertVoteChoice(voteChoice: string, proposalChoices: string[]): number {
+  const normalizedChoice = voteChoice.toLowerCase().trim();
+  
+  // Define patterns for matching yes/no/abstain to various choice labels
+  const yesPatterns = ['yes', 'yae', 'yea', 'for', 'approve', 'support', 'aye'];
+  const noPatterns = ['no', 'nay', 'against', 'reject', 'oppose', 'disapprove'];
+  const abstainPatterns = ['abstain', 'neutral', 'pass'];
+  
+  // Determine which pattern category the vote choice falls into
+  let targetPatterns: string[];
+  if (yesPatterns.includes(normalizedChoice)) {
+    targetPatterns = yesPatterns;
+  } else if (noPatterns.includes(normalizedChoice)) {
+    targetPatterns = noPatterns;
+  } else if (abstainPatterns.includes(normalizedChoice)) {
+    targetPatterns = abstainPatterns;
+  } else {
+    throw new Error(`Invalid vote choice: "${voteChoice}". Must be "yes", "no", or "abstain"`);
+  }
+  
+  // Find the matching choice in the proposal's choices array
+  for (let i = 0; i < proposalChoices.length; i++) {
+    const choiceLabel = proposalChoices[i].toLowerCase().trim();
+    if (targetPatterns.some(pattern => choiceLabel.includes(pattern) || pattern.includes(choiceLabel))) {
+      // Snapshot uses 1-indexed choices
+      console.debug(`Matched vote "${voteChoice}" to proposal choice "${proposalChoices[i]}" (index ${i + 1})`);
+      return i + 1;
+    }
+  }
+  
+  // Fallback: if no match found, throw an error with available choices
+  throw new Error(
+    `Could not match vote choice "${voteChoice}" to any available proposal choices: [${proposalChoices.join(', ')}]`
+  );
+}
+
+/**
+ * Convert string vote choice to numeric value for Tally (on-chain) voting
+ * Tally uses standard Governor contract convention: 0 = Against, 1 = For, 2 = Abstain
+ * @param voteChoice The vote choice as string ("yes", "no", or "abstain")
+ * @returns The numeric vote value (0 = Against, 1 = For, 2 = Abstain)
+ */
+export function convertTallyVoteChoice(voteChoice: string): number {
   const normalizedChoice = voteChoice.toLowerCase().trim();
 
   switch (normalizedChoice) {
@@ -192,7 +236,8 @@ export async function castSnapshotVote(
   agentPrivateKey: string,
 ): Promise<void> {
   try {
-    const voteType = 'single-choice'; // TODO
+    // Use the proposal's actual type, fallback to 'single-choice' for backward compatibility
+    const voteType: ProposalType = proposal.type || 'single-choice';
     const voteDetails = await getVoteDetailsByAgentAddress(agentAddress, proposal.id);
 
     if (!voteDetails) {
@@ -204,10 +249,29 @@ export async function castSnapshotVote(
     console.debug(`wallet: ${wallet.address}`);
     console.debug(`agent: ${agentAddress}`);
 
-    const proposalHex = "0x" + BigInt(String(proposal.id).replace(/n$/, '')).toString(16);
+    // Convert proposal ID to hex and pad to 64 characters (32 bytes) to ensure even-length
+    const proposalHexRaw = BigInt(String(proposal.id).replace(/n$/, '')).toString(16);
+    const proposalHex = "0x" + proposalHexRaw.padStart(64, '0');
     console.debug('proposalHex: ', proposalHex)
-    const choice = convertVoteChoice(voteDetails.aiVoteChoice)
-    console.debug('choice: ', choice)
+    console.debug('voteType: ', voteType)
+    
+    // Get proposal choices - prefer stored choices from voteDetails, fallback to proposal.choices
+    const proposalChoices = voteDetails.proposalChoices || proposal.choices || ['For', 'Against', 'Abstain'];
+    console.debug('proposal choices: ', proposalChoices)
+    const choiceIndex = convertVoteChoice(voteDetails.aiVoteChoice, proposalChoices)
+    console.debug('choiceIndex: ', choiceIndex)
+
+    // Format the choice based on vote type
+    // For weighted voting, the choice is an object with choice indices as keys and vote weights as values
+    // For single-choice and basic, the choice is just the index number
+    let choice: number | Record<string, number>;
+    if (voteType === 'weighted' || voteType === 'quadratic') {
+      // For weighted voting, put 100% on the chosen option
+      choice = { [choiceIndex]: 1 };
+      console.debug('weighted choice: ', choice)
+    } else {
+      choice = choiceIndex;
+    }
 
     const receipt = await client.vote(wallet, agentAddress, {
       space: proposal.space.id,
@@ -268,7 +332,8 @@ export async function castTallyVote(
     // Initialize Governor contract
     const governor = new ethers.Contract(governorAddress, GovernorABI, wallet);
 
-    const support = convertVoteChoice(voteDetails.aiVoteChoice);
+    // Tally uses 0-indexed: 0 = Against, 1 = For, 2 = Abstain
+    const support = convertTallyVoteChoice(voteDetails.aiVoteChoice);
     const proposalIdBN = ethers.BigNumber.from(proposalId);
 
     logger.info(`Submitting vote: proposalId=${proposalId}, support=${support} (For)`);

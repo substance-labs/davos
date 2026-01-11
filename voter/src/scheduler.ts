@@ -43,6 +43,8 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+import { checkAndUpdateAllVotingPower, cleanupExpiredVotingPower } from './votingPowerService';
+
 /**
  * Starts the scheduler for fetching proposals and scheduling votes
  */
@@ -56,6 +58,19 @@ export function startScheduler(): void {
     logger.info('Scheduled run triggered');
     runFetchAndSchedule();
   });
+  
+  // Schedule voting power checks every 10 minutes
+  cron.schedule('*/10 * * * *', async () => {
+    logger.info('Scheduled voting power check triggered');
+    await checkAndUpdateAllVotingPower();
+    await cleanupExpiredVotingPower();
+  });
+
+  // Run initial voting power check after a short delay
+  setTimeout(() => {
+    logger.info('Running initial voting power check...');
+    checkAndUpdateAllVotingPower();
+  }, 5000);
   
   logger.debug(`Scheduler configured with cron: ${FETCH_SCHEDULE}`);
 }
@@ -102,14 +117,16 @@ export async function runFetchAndSchedule(): Promise<void> {
             // Fetch from all subDaos and aggregate
             for (const subDao of dao.subDaos) {
               logger.info(`    - ${subDao.name} (${subDao.governorAddress})`);
-              const subProposals = await fetchTallyProposals(subDao.governorAddress);
+              // Use the full subDao.id which includes chain prefix
+              const subProposals = await fetchTallyProposals(subDao.id);
               proposals.push(...subProposals);
               logger.info(`      Found ${subProposals.length} proposal(s)`);
               await delay(2000); // Delay between each subDAO fetch
             }
           } else {
             logger.info('  Fetching Tally proposals...');
-            proposals = await fetchTallyProposals(dao.governorAddress);
+            // Use the full dao.id which includes chain prefix (e.g., "eip155:1:0x...")
+            proposals = await fetchTallyProposals(dao.id);
             await delay(2000);
           }
         } else {
@@ -162,7 +179,11 @@ export async function runFetchAndSchedule(): Promise<void> {
               title: proposal.title,
               body: proposal.body,
               end: proposal.endBlock, // Tally uses endBlock instead of end
-            } : proposal; // Snapshot proposal is already in correct format
+              choices: ['For', 'Against', 'Abstain'], // Tally uses standard choices
+            } : proposal; // Snapshot proposal is already in correct format (includes choices)
+            
+            // Get proposal choices (default to standard if not available)
+            const proposalChoices = normalizedProposal.choices || ['For', 'Against', 'Abstain'];
             
             try {
               // Check if proposal has changed
@@ -176,10 +197,12 @@ export async function runFetchAndSchedule(): Promise<void> {
               
               if (hasChanged) {
                 // Generate AI response for this proposal
+                // Include available choices in the directive
+                const choicesInfo = `The available voting choices for this proposal are: [${proposalChoices.join(', ')}].`;
                 const directive = process.env.AI_DIRECTIVE || "Suggest a vote for the passed proposal based on the ethos of the user. The result must be only a JSON with two elements: 'vote', which can be yes or no, and 'reason', which is the explanation of the reasons considered for the voting decision. The JSON must be formatted as follows: {\"vote\": \"yes\", \"reason\": \"...\"}.";
                 
                 const aiResponse = await fetchOpenAIResponse(
-                  `This is the user ethos: ${userEthos}. ${directive}`,
+                  `This is the user ethos: ${userEthos}. ${choicesInfo} ${directive}`,
                   normalizedProposal.body
                 );
                 
@@ -195,13 +218,14 @@ export async function runFetchAndSchedule(): Promise<void> {
                   logger.warn(`    ⚠️  Failed to parse AI response for ${normalizedProposal.id}`);
                 }
                 
-                // Save vote details
+                // Save vote details including proposal choices
                 await upsertVoteDetails(
                   agentAddress,
                   normalizedProposal.id,
                   dao.id,
                   normalizedProposal.title,
                   normalizedProposal.body,
+                  proposalChoices,
                   normalizedProposal.end,
                   reasoning,
                   aiVoteChoice,

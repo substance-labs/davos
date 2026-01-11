@@ -28,9 +28,13 @@ export const snapshotVote = async (signer: Address, snapshotVote: any) => {
     console.info(`wallet: ${wallet.address}`);
     console.info(`agent: ${agent.address}`);
 
-    const proposalHex = "0x" + BigInt(String(snapshotVote.proposal).replace(/n$/, '')).toString(16);
+    // Convert proposal ID to hex and pad to 64 characters (32 bytes) to ensure even-length
+    const proposalHexRaw = BigInt(String(snapshotVote.proposal).replace(/n$/, '')).toString(16);
+    const proposalHex = "0x" + proposalHexRaw.padStart(64, '0');
     console.info('proposalHex: ', proposalHex)
-    const choice = snapshotVote.choice.toString().replace(/n$/, '')
+    console.info('snapshotVote: ', snapshotVote)
+    // Ensure choice is a number for single-choice voting
+    const choice = parseInt(String(snapshotVote.choice).replace(/n$/, ''), 10);
     console.info('choice: ', choice)
 
     const receipt = await client.vote(wallet, agent.address, {

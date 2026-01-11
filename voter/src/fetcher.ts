@@ -47,6 +47,7 @@ export async function fetchProposals(spaceId: string): Promise<SnapshotProposal[
           snapshot
           state
           author
+          type
           space {
             id
             name
@@ -108,25 +109,30 @@ export async function fetchProposals(spaceId: string): Promise<SnapshotProposal[
 
 /**
  * Fetches active proposals from a Tally Governor contract
+ * @param governorId - The full Tally governor ID (e.g., "eip155:1:0x408ED6354d4973f66138C91495F2f2FCbd8724C3")
  */
-export async function fetchTallyProposals(governorAddress: string): Promise<TallyProposal[]> {
+export async function fetchTallyProposals(governorId: string): Promise<TallyProposal[]> {
   try {
     if (!TALLY_API_URL) {
       logger.warn('TALLY_API_URL not configured, skipping Tally proposal fetch');
       return [];
     }
 
+    // Extract just the address for logging/caching (last part of the ID)
+    const governorAddress = governorId.includes(':') ? governorId.split(':').pop() : governorId;
+
     // Check cache first to avoid any API calls
-    const cacheKey = `tally_${governorAddress}`;
+    const cacheKey = `tally_${governorId}`;
     const cached = tallyCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
       logger.info(`Using cached proposals for ${governorAddress} (${cached.data.length} proposals, age: ${Math.round((Date.now() - cached.timestamp) / 1000)}s)`);
       return cached.data;
     }
 
+    // Use the full governor ID as provided (includes chain prefix)
     const query = `
       query {
-        governor(input: {id: "eip155:42161:${governorAddress}"}) {
+        governor(input: {id: "${governorId}"}) {
           id
           name
           organization {
@@ -299,11 +305,11 @@ export async function fetchTallyProposals(governorAddress: string): Promise<Tall
     
     return activeProposals;
   } catch (error) {
-    logger.error(`Failed to fetch Tally proposals for ${governorAddress}: ${error instanceof Error ? error.message : String(error)}`);
+    logger.error(`Failed to fetch Tally proposals for ${governorId}: ${error instanceof Error ? error.message : String(error)}`);
     // Clear any stale cache on error to allow retry
-    const cacheKey = `tally_${governorAddress}`;
-    tallyCache.delete(cacheKey);
-    logger.info(`Cleared cache for ${governorAddress} due to error`);
+    const errorCacheKey = `tally_${governorId}`;
+    tallyCache.delete(errorCacheKey);
+    logger.info(`Cleared cache for ${governorId} due to error`);
     return [];
   }
 }
