@@ -524,6 +524,7 @@ export async function upsertVoteDetails(
   spaceId: string,
   proposalTitle: string,
   proposalText: string,
+  proposalChoices: string[],
   lastUpdated: number,
   aiResponse: string,
   aiVoteChoice: 'yes' | 'no',
@@ -541,6 +542,7 @@ export async function upsertVoteDetails(
         spaceId,
         proposalTitle,
         proposalText,
+        proposalChoices,
         proposalTextHash,
         lastUpdated,
         aiResponse,
@@ -808,11 +810,15 @@ export async function refreshVoteDetailsForUser(userAddress: string, providedEth
             continue;
           }
 
+          // Get proposal choices from the stored vote details, default to standard choices
+          const proposalChoices = vote.proposalChoices || ['For', 'Against', 'Abstain'];
+          const choicesInfo = `The available voting choices for this proposal are: [${proposalChoices.join(', ')}].`;
+          
           // Build AI directive and regenerate response
           const directive = process.env.AI_DIRECTIVE || "Suggest a vote for the passed proposal based on the ethos of the user. The result must be only a JSON with two elements: 'vote', which can be yes or no, and 'reason', which is the explanation of the reasons considered for the voting decision. The JSON must be formatted as follows: {\"vote\": \"yes\", \"reason\": \"...\"}.";
 
           const aiResponse = await fetchOpenAIResponse(
-            `This is the user ethos: ${userEthos}. ${directive}`,
+            `This is the user ethos: ${userEthos}. ${choicesInfo} ${directive}`,
             vote.proposalText
           );
 
@@ -835,6 +841,7 @@ export async function refreshVoteDetailsForUser(userAddress: string, providedEth
             vote.spaceId,
             vote.proposalTitle,
             vote.proposalText,
+            proposalChoices,
             vote.lastUpdated || Date.now(),
             reasoning,
             aiVoteChoice,

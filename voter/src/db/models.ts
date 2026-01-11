@@ -42,6 +42,7 @@ export interface IVoteDetails extends Document {
   spaceId: string;            // DAO space ID
   proposalTitle: string;      // Proposal title
   proposalText: string;       // Full proposal text
+  proposalChoices: string[];  // Available voting choices (e.g., ["YAE", "NAY", "Abstain"])
   proposalTextHash: string;   // Hash of proposal text for change detection
   lastUpdated: number;        // Timestamp when proposal was last updated
   aiResponse: string;         // AI reasoning text
@@ -52,6 +53,22 @@ export interface IVoteDetails extends Document {
   createdAt: Date;
   updatedAt: Date;
   lastChecked: Date;          // When we last verified proposal text
+}
+
+export interface IVotingPower extends Document {
+  agentAddress: string;       // Agent address (voter)
+  proposalId: string;         // Snapshot proposal ID
+  spaceId: string;            // DAO space ID
+  vp: number;                 // Total voting power
+  vpByStrategy: number[];     // Voting power by each strategy
+  vpState: string;            // 'valid', 'invalid', or 'loading'
+  proposalEnd: number;        // Proposal end timestamp
+  proposalStart: number;      // Proposal start timestamp
+  canVote: boolean;           // Whether agent can vote (vp > 0 and valid state)
+  scheduledVoteTime?: Date;   // When the vote is scheduled (if applicable)
+  lastChecked: Date;          // When we last checked the voting power
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const AgentSchema = new Schema<IAgent>(
@@ -119,6 +136,7 @@ const VoteDetailsSchema = new Schema<IVoteDetails>(
     spaceId: { type: String, required: true, index: true },
     proposalTitle: { type: String, required: true },
     proposalText: { type: String, required: true },
+    proposalChoices: { type: [String], default: ['For', 'Against', 'Abstain'] },
     proposalTextHash: { type: String, required: true },
     lastUpdated: { type: Number, required: true },
     aiResponse: { type: String, required: true },
@@ -136,7 +154,29 @@ VoteDetailsSchema.index({ userAddress: 1, proposalId: 1 }, { unique: true });
 VoteDetailsSchema.index({ userAddress: 1, status: 1 });
 VoteDetailsSchema.index({ spaceId: 1, status: 1 });
 
+const VotingPowerSchema = new Schema<IVotingPower>(
+  {
+    agentAddress: { type: String, required: true, index: true },
+    proposalId: { type: String, required: true, index: true },
+    spaceId: { type: String, required: true, index: true },
+    vp: { type: Number, required: true, default: 0 },
+    vpByStrategy: { type: [Number], default: [] },
+    vpState: { type: String, required: true, default: 'loading' },
+    proposalEnd: { type: Number, required: true },
+    proposalStart: { type: Number, required: true },
+    canVote: { type: Boolean, required: true, default: false },
+    scheduledVoteTime: { type: Date },
+    lastChecked: { type: Date, default: Date.now }
+  },
+  { timestamps: true }
+);
+
+// Create compound indexes for efficient queries
+VotingPowerSchema.index({ agentAddress: 1, proposalId: 1 }, { unique: true });
+VotingPowerSchema.index({ spaceId: 1, proposalEnd: 1 });
+
 export const Agent = mongoose.model<IAgent>('Agent', AgentSchema);
 export const AgentSpace = mongoose.model<IAgentSpace>('AgentSpace', AgentSpaceSchema);
 export const ScheduledVote = mongoose.model<IScheduledVote>('ScheduledVote', ScheduledVoteSchema);
 export const VoteDetails = mongoose.model<IVoteDetails>('VoteDetails', VoteDetailsSchema);
+export const VotingPower = mongoose.model<IVotingPower>('VotingPower', VotingPowerSchema);
